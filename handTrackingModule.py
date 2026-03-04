@@ -17,8 +17,8 @@ class HandDetector:
         self.results=None
 
     def findHands(self,img, draw=True):
-        # imgRGB=cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
-        self.results=self.mpHand.process(img)
+        imgRGB=cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+        self.results=self.mpHand.process(imgRGB)
         if self.results and self.results.multi_hand_landmarks:
             for lm in self.results.multi_hand_landmarks:
                 if draw:
@@ -58,7 +58,7 @@ def main():
         fps=int(1/(ctime-ptime))
         ptime=ctime
 
-        cv2.putText(img, f'FPS: {fps}', (10,70), cv2.FONT_HERSHEY_COMPLEX,3,(0,255,0),3)
+        cv2.putText(img, f'FPS: {fps}', (10,70), cv2.FONT_HERSHEY_COMPLEX,3,(0,255,0),1)
         cv2.imshow("WebCam",img)
 
         if cv2.waitKey(1) & 0xff==ord('q'):
