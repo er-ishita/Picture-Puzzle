@@ -1,7 +1,7 @@
 import numpy as np
 import cv2
-import time
-import mediapipe as mp
+# import time
+# import mediapipe as mp
 import handTrackingModule as htm
 import math
 
@@ -21,29 +21,32 @@ start=cv2.imread("Picture-Puzzle/start.png")
 detect=htm.HandDetector()
 clickPic=False
 snapped=None
-saved=snapped
+saved=None
 
 puz=None
+board=None
 
-puzHeight,puzWidth=640,527
+puzHeight,puzWidth=528,642
 hl1,hl2=int(puzHeight/3),int(2*puzHeight/3)
 vl1,vl2=int(puzWidth/3),int(2*puzWidth/3)
 
 def overlay(background, overlay):
-    alpha=0.2
+    alpha=0.8
     blend=cv2.addWeighted(background, 1-alpha, overlay,alpha,0)
 
     h,w,_=overlay.shape
-    cv2.line(blend, (0,vl1), (w-1,vl1), (0,0,0), 2)
-    cv2.line(blend, (0,vl2), (w-1,vl2), (0,0,0), 2)
 
-    cv2.line(blend, (hl1,0), (hl1,h-1), (0,0,0), 2)
-    cv2.line(blend, (hl2,0), (hl2,h-1), (0,0,0), 2)
+    cv2.line(blend, (0,hl1), (w-1,hl1), (0,0,0), 2)
+    cv2.line(blend, (0,hl2), (w-1,hl2), (0,0,0), 2)
+
+    cv2.line(blend, (vl1,0), (vl1,h-1), (0,0,0), 2)
+    cv2.line(blend, (vl2,0), (vl2,h-1), (0,0,0), 2)
 
     return blend
 
 ########################################under construction
 def puzzleRandom(snap):
+
     puzHeight,puzWidth,_=snap.shape
     hl1,hl2=int(puzHeight/3),int(2*puzHeight/3)
     vl1,vl2=int(puzWidth/3),int(2*puzWidth/3)
@@ -60,19 +63,40 @@ def puzzleRandom(snap):
     a32=snap[hl2:puzHeight,vl1:vl2]
     a33=snap[hl2:puzHeight,vl2:puzWidth]
 
-    puzzle=np.array([
+    puzzle=[
         a11,a12,a13,
         a21,a22,a23,
         a31,a32,a33
-    ])
+    ]
 
     np.random.shuffle(puzzle)
 
-    puzzle=puzzle.reshape(3,3)
+    puzzle = [puzzle[0:3], puzzle[3:6], puzzle[6:9]]
+
     return puzzle
 
-def puzzleSwap(c1,c2,puzzle):
-    puzzle[c1],puzzle[c2]= puzzle[c2],puzzle[c1]
+def puzzleSwap(r1,c1,r2,c2,puzzle):
+    puzzle[r1][c1],puzzle[r2][c2]= puzzle[r2][c2],puzzle[r1][c1]
+
+def constructB(puz,snap):
+    board = np.zeros_like(snap)
+
+    # print("slice shape:", board[0:hl1,0:vl1].shape)
+    # print("tile shape:", puz[0][0].shape)
+
+    board[0:hl1,0:vl1] = puz[0][0]
+    board[0:hl1,vl1:vl2] = puz[0][1]
+    board[0:hl1,vl2:puzWidth] = puz[0][2]
+
+    board[hl1:hl2,0:vl1] = puz[1][0]
+    board[hl1:hl2,vl1:vl2] = puz[1][1]
+    board[hl1:hl2,vl2:puzWidth] = puz[1][2]
+
+    board[hl2:puzHeight,0:vl1] = puz[2][0]
+    board[hl2:puzHeight,vl1:vl2] = puz[2][1]
+    board[hl2:puzHeight,vl2:puzWidth] = puz[2][2]
+    # print(board)
+    return board
 
 ###############################################################
 
@@ -84,7 +108,7 @@ while True:
         break
 
     img=cv2.flip(img,1)
-    img=cv2.resize(img, (640,527))
+    img=cv2.resize(img, (642,528))
 
     img=detect.findHands(img)
     handlms=[]    
@@ -92,14 +116,19 @@ while True:
 
     if detect.results and detect.results.multi_hand_landmarks:
         hands=len(detect.results.multi_hand_landmarks)
+        
         if hands>=2:
             handlms=detect.findPosition(img,handNo=0, draw=False)
             handlms2=detect.findPosition(img, handNo=1,draw=False)
-
+    
+    ##clicking pic logic
     if not clickPic and len(handlms)==21 and len(handlms2)==21:
+        
+        #thumb coordinate for both hands
         tx1,ty1=handlms[4][1], handlms[4][2]
         tx2,ty2=handlms2[4][1], handlms2[4][2]
-
+        
+        #index finger coordinate
         fx1,fy1=handlms[8][1], handlms[8][2]
         fx2,fy2=handlms2[8][1], handlms2[8][2]
         
@@ -107,29 +136,43 @@ while True:
        
         d1=int(math.hypot(tx1-fx1,ty1-fy1))
         d2=int(math.hypot(tx2-fx2,ty2-fy2))
+        
         # print(d1,d2)
+        
         if d1<20 and d2<20:
+        
             clickPic=True
             lowx,lowy=min(tx1,tx2),min(ty1,ty2)
             highx,highy=max(tx1,tx2),max(ty1,ty2)
+        
             snapped=img[lowy:highy, lowx:highx].copy()
+            snapped=cv2.resize(snapped,(642,528))
+
             saved=snapped
-            # puz=puzzleRandom(snapped)
+            # print("Here1")
+            puz=puzzleRandom(snapped)
+            # cv2.imshow("Puzzle",board)
     
-    if clickPic and snapped is not None:
-        h,w,_=img.shape
-        snapped=cv2.resize(snapped,(640,527))
-        img=overlay(snapped, img)
+    #shuffle pic overlay
+    if clickPic and puz is not None and snapped is not None:
+        # print("Here2")
+        # print(img.shape)
+        board=constructB(puz,snapped)
+        # print(board.shape)
+        if img.shape != board.shape:
+            board = cv2.resize(board, (img.shape[1], img.shape[0]))
+        img=overlay(img,board)
 
     if clickPic and snapped is not None:
         cv2.imshow("Snapp",snapped)
     
     frame=start.copy()
-    frame[120:120+527,72:72+640]=img
+    frame[120:120+528,72:72+642]=img
 
     cv2.imshow("Picture-Puzzle",frame)
     
     key=cv2.waitKey(1)
+
     if key==ord('q'):
         print("Quitting")
         break
@@ -137,6 +180,7 @@ while True:
     if key==ord('r') :
         clickPic=False
         snapped=None
+        puz=None
     
 cam.release()
 cv2.destroyAllWindows()
