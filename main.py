@@ -1,6 +1,6 @@
 import numpy as np
 import cv2
-# import time
+import time
 # import mediapipe as mp
 import handTrackingModule as htm
 import math
@@ -10,8 +10,9 @@ cam=cv2.VideoCapture(0)
 camwid=1080
 camheight=720
 
-# ptime=0
+ptime=0
 # lastSnap=0
+lastSwap=0
 
 cam.set(3,camwid)
 cam.set(4,camheight)
@@ -24,6 +25,7 @@ snapped=None
 saved=None
 
 puz=None
+original=None
 board=None
 
 puzHeight,puzWidth=528,642
@@ -44,7 +46,7 @@ def overlay(background, overlay):
 
     return blend
 
-########################################under construction
+########################################puzzle logic
 def puzzleRandom(snap):
 
     puzHeight,puzWidth,_=snap.shape
@@ -69,14 +71,27 @@ def puzzleRandom(snap):
         a31,a32,a33
     ]
 
+    original=puzzle.copy()
     np.random.shuffle(puzzle)
-
+    
     puzzle = [puzzle[0:3], puzzle[3:6], puzzle[6:9]]
 
-    return puzzle
+    return puzzle,original
 
-def puzzleSwap(r1,c1,r2,c2,puzzle):
-    puzzle[r1][c1],puzzle[r2][c2]= puzzle[r2][c2],puzzle[r1][c1]
+def getValues(pt,l1,l2):
+    if pt<l1:
+        return 0
+    if pt<l2:
+        return 1
+    return 2
+
+def puzzleSwap(x1,y1,x2,y2):
+    c1=getValues(x1,vl1,vl2)
+    c2=getValues(x2,vl1,vl2)
+    r1=getValues(y1,hl1,hl2)
+    r2=getValues(y2,hl1,hl2)
+    
+    puz[r1][c1],puz[r2][c2]= puz[r2][c2],puz[r1][c1]
 
 def constructB(puz,snap):
     board = np.zeros_like(snap)
@@ -98,6 +113,9 @@ def constructB(puz,snap):
     # print(board)
     return board
 
+def checkpuz():
+    flat=[puz[r][c] for r in range(3) for c in range(3)]
+    return all(flat[i] is original[i] for i in range(9))
 ###############################################################
 
 while True:
@@ -114,6 +132,7 @@ while True:
     handlms=[]    
     handlms2=[]
 
+    ##both hand detection
     if detect.results and detect.results.multi_hand_landmarks:
         hands=len(detect.results.multi_hand_landmarks)
         
@@ -121,6 +140,32 @@ while True:
             handlms=detect.findPosition(img,handNo=0, draw=False)
             handlms2=detect.findPosition(img, handNo=1,draw=False)
     
+    ##play logic
+    if clickPic and len(handlms)==21 and len(handlms2)==21:
+        #thumb coordinate for both hands
+        tx1,ty1=handlms[4][1], handlms[4][2]
+        tx2,ty2=handlms2[4][1], handlms2[4][2]
+        
+        #index finger coordinate
+        fx1,fy1=handlms[8][1], handlms[8][2]
+        fx2,fy2=handlms2[8][1], handlms2[8][2]
+
+        d1=int(math.hypot(tx1-fx1,ty1-fy1))
+        d2=int(math.hypot(tx2-fx2,ty2-fy2))
+        
+        # print(d1,d2)
+        ctime=time.time()
+        if d1<20 and d2<20 and ctime-lastSwap>0.5:
+            puzzleSwap(tx1,ty1,tx2,ty2)
+            lastSwap=ctime
+
+        if checkpuz():
+            ctime=time.time()
+            t=int(ctime-ptime)
+            cv2.putText(saved, f"Yayy, you solved it in: {t} seconds",(10,70),cv2.FONT_HERSHEY_COMPLEX,1,(0,0,255),2)
+            cv2.imshow("Solved!",saved)
+
+
     ##clicking pic logic
     if not clickPic and len(handlms)==21 and len(handlms2)==21:
         
@@ -148,9 +193,10 @@ while True:
             snapped=img[lowy:highy, lowx:highx].copy()
             snapped=cv2.resize(snapped,(642,528))
 
-            saved=snapped
+            saved=snapped.copy()
             # print("Here1")
-            puz=puzzleRandom(snapped)
+            puz,original=puzzleRandom(snapped) 
+            ptime=time.time()
             # cv2.imshow("Puzzle",board)
     
     #shuffle pic overlay
@@ -162,9 +208,6 @@ while True:
         if img.shape != board.shape:
             board = cv2.resize(board, (img.shape[1], img.shape[0]))
         img=overlay(img,board)
-
-    if clickPic and snapped is not None:
-        cv2.imshow("Snapp",snapped)
     
     frame=start.copy()
     frame[120:120+528,72:72+642]=img
