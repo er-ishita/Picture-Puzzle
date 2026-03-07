@@ -10,8 +10,8 @@ cam=cv2.VideoCapture(0)
 camwid=1080
 camheight=720
 
-ptime=0
-lastSnap=0
+# ptime=0
+# lastSnap=0
 
 cam.set(3,camwid)
 cam.set(4,camheight)
@@ -26,8 +26,8 @@ saved=snapped
 puz=None
 
 puzHeight,puzWidth=640,527
-vl1,vl2=int(puzHeight/3),int(2*puzHeight/3)
-hl1,hl2=int(puzWidth/3),int(2*puzWidth/3)
+hl1,hl2=int(puzHeight/3),int(2*puzHeight/3)
+vl1,vl2=int(puzWidth/3),int(2*puzWidth/3)
 
 def overlay(background, overlay):
     alpha=0.2
@@ -44,6 +44,10 @@ def overlay(background, overlay):
 
 ########################################under construction
 def puzzleRandom(snap):
+    puzHeight,puzWidth,_=snap.shape
+    hl1,hl2=int(puzHeight/3),int(2*puzHeight/3)
+    vl1,vl2=int(puzWidth/3),int(2*puzWidth/3)
+    
     a11=snap[0:hl1,0:vl1]
     a12=snap[0:hl1,vl1:vl2]
     a13=snap[0:hl1,vl2:puzWidth]
